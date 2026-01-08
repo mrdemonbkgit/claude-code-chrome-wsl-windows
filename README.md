@@ -40,8 +40,9 @@ This project solves that by creating a bridge using Chrome DevTools Protocol.
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Supported Browser Tools
+## Supported Browser Tools (39 Total)
 
+### Core Tools
 | Tool | Description |
 |------|-------------|
 | `tabs_context_mcp` | Get list of browser tabs |
@@ -53,6 +54,56 @@ This project solves that by creating a bridge using Chrome DevTools Protocol.
 | `javascript_tool` | Execute JavaScript |
 | `find` | Find elements on page |
 | `form_input` | Fill form fields |
+
+### Cookies & Network Tools
+| Tool | Description |
+|------|-------------|
+| `cookies_get` | Get cookies for current page or URLs |
+| `cookies_set` | Set one or more cookies |
+| `cookies_delete` | Delete a specific cookie |
+| `cookies_clear` | Clear all browser cookies |
+| `network_headers` | Set extra HTTP headers |
+| `network_cache` | Enable/disable network cache |
+| `network_block` | Block URLs matching patterns |
+| `page_reload` | Reload the current page |
+| `page_wait_for_load` | Wait for page load event |
+| `page_wait_for_network_idle` | Wait for network idle |
+| `network_wait_for_response` | Wait for specific response |
+
+### DOM Tools
+| Tool | Description |
+|------|-------------|
+| `element_query` | Find element by CSS selector |
+| `element_query_all` | Find all matching elements |
+| `element_scroll_into_view` | Scroll element into viewport |
+| `element_box_model` | Get element position/dimensions |
+| `element_focus` | Focus an element |
+| `element_html` | Get element's outer HTML |
+
+### Dialog & File Tools
+| Tool | Description |
+|------|-------------|
+| `dialog_handle` | Accept/dismiss JS dialogs |
+| `dialog_wait` | Wait for dialog to appear |
+| `file_upload` | Upload files (WSL paths auto-converted) |
+| `file_chooser_wait` | Wait for file chooser |
+
+### Emulation Tools
+| Tool | Description |
+|------|-------------|
+| `emulate_device` | Set viewport, mobile mode, touch |
+| `emulate_geolocation` | Override geolocation |
+| `emulate_timezone` | Override timezone |
+| `emulate_user_agent` | Override user agent |
+
+### Console & Performance Tools
+| Tool | Description |
+|------|-------------|
+| `console_enable` | Enable console capture |
+| `console_messages` | Get captured messages |
+| `console_clear` | Clear console messages |
+| `performance_metrics` | Get performance metrics |
+| `page_layout_metrics` | Get viewport dimensions |
 
 ## Prerequisites
 
@@ -105,7 +156,7 @@ Create `~/.mcp.json` in WSL:
 ```json
 {
   "mcpServers": {
-    "claude-in-chrome": {
+    "chrome-bridge": {
       "command": "node",
       "args": ["/home/YOUR_USERNAME/projects/claude-code-chrome-wsl-windows/wsl-bridge/src/mcp-server.js"],
       "env": {

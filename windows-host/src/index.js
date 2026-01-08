@@ -129,6 +129,101 @@ class CDPHost {
         case 'form_input':
           result = await this.handleFormInput(args);
           break;
+        // Phase 1: Network/Cookies
+        case 'cookies_get':
+          result = await this.handleCookiesGet(args);
+          break;
+        case 'cookies_set':
+          result = await this.handleCookiesSet(args);
+          break;
+        case 'cookies_delete':
+          result = await this.handleCookiesDelete(args);
+          break;
+        case 'cookies_clear':
+          result = await this.handleCookiesClear(args);
+          break;
+        case 'network_headers':
+          result = await this.handleNetworkHeaders(args);
+          break;
+        case 'network_cache':
+          result = await this.handleNetworkCache(args);
+          break;
+        case 'network_block':
+          result = await this.handleNetworkBlock(args);
+          break;
+        case 'page_reload':
+          result = await this.handlePageReload(args);
+          break;
+        case 'page_wait_for_load':
+          result = await this.handlePageWaitForLoad(args);
+          break;
+        case 'page_wait_for_network_idle':
+          result = await this.handlePageWaitForNetworkIdle(args);
+          break;
+        case 'network_wait_for_response':
+          result = await this.handleNetworkWaitForResponse(args);
+          break;
+        // Phase 2: DOM
+        case 'element_query':
+          result = await this.handleElementQuery(args);
+          break;
+        case 'element_query_all':
+          result = await this.handleElementQueryAll(args);
+          break;
+        case 'element_scroll_into_view':
+          result = await this.handleElementScrollIntoView(args);
+          break;
+        case 'element_box_model':
+          result = await this.handleElementBoxModel(args);
+          break;
+        case 'element_focus':
+          result = await this.handleElementFocus(args);
+          break;
+        case 'element_html':
+          result = await this.handleElementHTML(args);
+          break;
+        // Phase 3: Dialogs/Files
+        case 'dialog_handle':
+          result = await this.handleDialogHandle(args);
+          break;
+        case 'dialog_wait':
+          result = await this.handleDialogWait(args);
+          break;
+        case 'file_upload':
+          result = await this.handleFileUpload(args);
+          break;
+        case 'file_chooser_wait':
+          result = await this.handleFileChooserWait(args);
+          break;
+        // Phase 4: Emulation
+        case 'emulate_device':
+          result = await this.handleEmulateDevice(args);
+          break;
+        case 'emulate_geolocation':
+          result = await this.handleEmulateGeolocation(args);
+          break;
+        case 'emulate_timezone':
+          result = await this.handleEmulateTimezone(args);
+          break;
+        case 'emulate_user_agent':
+          result = await this.handleEmulateUserAgent(args);
+          break;
+        // Phase 5: Console/Performance
+        case 'console_enable':
+          result = await this.handleConsoleEnable(args);
+          break;
+        case 'console_messages':
+          result = await this.handleConsoleMessages(args);
+          break;
+        case 'console_clear':
+          result = await this.handleConsoleClear(args);
+          break;
+        case 'performance_metrics':
+          result = await this.handlePerformanceMetrics(args);
+          break;
+        case 'page_layout_metrics':
+          result = await this.handlePageLayoutMetrics(args);
+          break;
         default:
           throw new Error(`Unknown tool: ${toolName}`);
       }
@@ -336,6 +431,306 @@ class CDPHost {
 
     const result = await this.cdp.executeScript(script);
     return { success: result };
+  }
+
+  // ============================================
+  // Phase 1: Network/Cookies Handlers
+  // ============================================
+
+  async handleCookiesGet(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.getCookies(args.urls || []);
+    return { cookies: result.cookies };
+  }
+
+  async handleCookiesSet(args) {
+    await this.ensureConnected(args.tabId);
+    const cookies = Array.isArray(args.cookies) ? args.cookies : [args.cookies];
+    await this.cdp.setCookies(cookies);
+    return { success: true, count: cookies.length };
+  }
+
+  async handleCookiesDelete(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.deleteCookies(args.name, {
+      url: args.url,
+      domain: args.domain,
+      path: args.path
+    });
+    return { success: true };
+  }
+
+  async handleCookiesClear(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.clearBrowserCookies();
+    return { success: true };
+  }
+
+  async handleNetworkHeaders(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.setExtraHTTPHeaders(args.headers);
+    return { success: true };
+  }
+
+  async handleNetworkCache(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.setCacheDisabled(args.disabled !== false);
+    return { success: true, cacheDisabled: args.disabled !== false };
+  }
+
+  async handleNetworkBlock(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.setBlockedURLs(args.urls || []);
+    return { success: true, blockedUrls: args.urls || [] };
+  }
+
+  async handlePageReload(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.reload({
+      ignoreCache: args.ignoreCache || false,
+      scriptToEvaluateOnLoad: args.scriptToEvaluateOnLoad
+    });
+    return { success: true };
+  }
+
+  async handlePageWaitForLoad(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.waitForLoad({
+      waitUntil: args.waitUntil || 'load',
+      timeoutMs: args.timeoutMs || 30000
+    });
+    return { success: true, event: result };
+  }
+
+  async handlePageWaitForNetworkIdle(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.waitForNetworkIdle({
+      idleMs: args.idleMs || 500,
+      timeoutMs: args.timeoutMs || 30000,
+      maxInflight: args.maxInflight || 0
+    });
+    return { success: true, idleTime: result.idleTime };
+  }
+
+  async handleNetworkWaitForResponse(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.waitForResponse({
+      url: args.url,
+      urlRegex: args.urlRegex,
+      method: args.method,
+      status: args.status,
+      resourceType: args.resourceType,
+      timeoutMs: args.timeoutMs || 30000
+    });
+    return {
+      requestId: result.requestId,
+      url: result.response?.url,
+      status: result.response?.status,
+      headers: result.response?.headers
+    };
+  }
+
+  // ============================================
+  // Phase 2: DOM Handlers
+  // ============================================
+
+  async handleElementQuery(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.querySelector(args.selector, args.nodeId);
+    return {
+      nodeId: result.nodeId,
+      selector: result.selector,
+      docVersion: result.docVersion,
+      found: result.nodeId !== 0
+    };
+  }
+
+  async handleElementQueryAll(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.querySelectorAll(args.selector, args.nodeId);
+    return {
+      nodeIds: result.nodeIds,
+      selector: result.selector,
+      docVersion: result.docVersion,
+      count: result.nodeIds.length
+    };
+  }
+
+  async handleElementScrollIntoView(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.scrollIntoViewIfNeeded(args.nodeId);
+    return { success: true };
+  }
+
+  async handleElementBoxModel(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.getBoxModel(args.nodeId);
+    return { model: result.model };
+  }
+
+  async handleElementFocus(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.focusElement(args.nodeId);
+    return { success: true };
+  }
+
+  async handleElementHTML(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.getOuterHTML(args.nodeId);
+    return { outerHTML: result.outerHTML };
+  }
+
+  // ============================================
+  // Phase 3: Dialogs/Files Handlers
+  // ============================================
+
+  async handleDialogHandle(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.handleJavaScriptDialog(
+      args.accept !== false,
+      args.promptText
+    );
+    return { success: true };
+  }
+
+  async handleDialogWait(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.waitForDialog({
+      timeoutMs: args.timeoutMs || 30000,
+      autoHandle: args.autoHandle,
+      action: args.action || 'dismiss',
+      promptText: args.promptText
+    });
+    return result;
+  }
+
+  async handleFileUpload(args) {
+    await this.ensureConnected(args.tabId);
+
+    // Convert WSL paths to Windows paths
+    const { CDPClient } = require('./cdp-client');
+    const windowsFiles = (args.files || []).map(f => CDPClient.toWindowsPath(f));
+
+    await this.cdp.setFileInputFiles(
+      windowsFiles,
+      args.nodeId,
+      args.backendNodeId
+    );
+    return { success: true, files: windowsFiles };
+  }
+
+  async handleFileChooserWait(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.waitForFileChooser({
+      timeoutMs: args.timeoutMs || 30000
+    });
+    return result;
+  }
+
+  // ============================================
+  // Phase 4: Emulation Handlers
+  // ============================================
+
+  async handleEmulateDevice(args) {
+    await this.ensureConnected(args.tabId);
+
+    if (args.clear) {
+      await this.cdp.clearDeviceMetricsOverride();
+      return { success: true, cleared: true };
+    }
+
+    await this.cdp.setDeviceMetricsOverride({
+      width: args.width || 1920,
+      height: args.height || 1080,
+      deviceScaleFactor: args.deviceScaleFactor || 1,
+      mobile: args.mobile || false,
+      screenOrientation: args.screenOrientation
+    });
+
+    if (args.touch !== undefined) {
+      await this.cdp.setTouchEmulationEnabled(args.touch, args.maxTouchPoints || 1);
+    }
+
+    return { success: true };
+  }
+
+  async handleEmulateGeolocation(args) {
+    await this.ensureConnected(args.tabId);
+
+    if (args.clear) {
+      await this.cdp.clearGeolocationOverride();
+      return { success: true, cleared: true };
+    }
+
+    await this.cdp.setGeolocationOverride(
+      args.latitude,
+      args.longitude,
+      args.accuracy || 100
+    );
+    return { success: true };
+  }
+
+  async handleEmulateTimezone(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.setTimezoneOverride(args.timezoneId);
+    return { success: true };
+  }
+
+  async handleEmulateUserAgent(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.setUserAgentOverride(args.userAgent, {
+      platform: args.platform,
+      acceptLanguage: args.acceptLanguage
+    });
+    return { success: true };
+  }
+
+  // ============================================
+  // Phase 5: Console/Performance Handlers
+  // ============================================
+
+  async handleConsoleEnable(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.enableConsole();
+    if (args.enableLog) {
+      await this.cdp.enableLog();
+    }
+    return { success: true };
+  }
+
+  async handleConsoleMessages(args) {
+    await this.ensureConnected(args.tabId);
+    const messages = this.cdp.getConsoleMessages(args.since || 0);
+    const logEntries = args.includeLogs ? this.cdp.getLogEntries(args.since || 0) : [];
+    return { messages, logEntries };
+  }
+
+  async handleConsoleClear(args) {
+    await this.ensureConnected(args.tabId);
+    await this.cdp.clearConsole();
+    this.cdp.clearEventQueue();
+    return { success: true };
+  }
+
+  async handlePerformanceMetrics(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.getPerformanceMetrics();
+    return { metrics: result.metrics };
+  }
+
+  async handlePageLayoutMetrics(args) {
+    await this.ensureConnected(args.tabId);
+    const result = await this.cdp.getLayoutMetrics();
+    return result;
+  }
+
+  // Helper to ensure connection
+  async ensureConnected(tabId) {
+    if (tabId !== undefined && tabId !== null) {
+      await this.cdp.connectToTarget(tabId);
+    } else if (!this.cdp.ws) {
+      await this.cdp.connectToTarget();
+    }
   }
 
   sendResponse(id, result) {

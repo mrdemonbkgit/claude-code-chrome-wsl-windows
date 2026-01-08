@@ -37,13 +37,15 @@ Once the bridge is running, these MCP tools are available:
 
 | Tool | Description | Example |
 |------|-------------|---------|
-| `mcp__claude-in-chrome__tabs_context_mcp` | Get browser tabs | `{createIfEmpty: true}` |
-| `mcp__claude-in-chrome__navigate` | Go to URL | `{url: "http://localhost:3000", tabId: "..."}` |
-| `mcp__claude-in-chrome__computer` | Screenshot/click/type | `{action: "screenshot", tabId: "..."}` |
-| `mcp__claude-in-chrome__get_page_text` | Extract page text | `{tabId: "..."}` |
-| `mcp__claude-in-chrome__javascript_tool` | Run JavaScript | `{text: "document.title", tabId: "..."}` |
-| `mcp__claude-in-chrome__find` | Find elements | `{query: "button", tabId: "..."}` |
-| `mcp__claude-in-chrome__form_input` | Fill form fields | `{ref: "element-0", value: "test", tabId: "..."}` |
+| `mcp__chrome-bridge__tabs_context_mcp` | Get browser tabs | `{createIfEmpty: true}` |
+| `mcp__chrome-bridge__navigate` | Go to URL | `{url: "http://localhost:3000", tabId: 0}` |
+| `mcp__chrome-bridge__computer` | Screenshot/click/type | `{action: "screenshot", tabId: 0}` |
+| `mcp__chrome-bridge__get_page_text` | Extract page text | `{tabId: 0}` |
+| `mcp__chrome-bridge__javascript_tool` | Run JavaScript | `{action: "javascript_exec", text: "document.title", tabId: 0}` |
+| `mcp__chrome-bridge__find` | Find elements | `{query: "button", tabId: 0}` |
+| `mcp__chrome-bridge__form_input` | Fill form fields | `{ref: "element-0", value: "test", tabId: 0}` |
+| `mcp__chrome-bridge__tabs_create_mcp` | Create new tab | `{}` |
+| `mcp__chrome-bridge__read_page` | Get accessibility tree | `{tabId: 0}` |
 
 ### E2E Test Workflow
 

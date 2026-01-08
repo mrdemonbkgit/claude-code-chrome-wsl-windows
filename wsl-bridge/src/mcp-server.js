@@ -172,6 +172,415 @@ const BROWSER_TOOLS = [
       },
       required: ['action', 'text', 'tabId']
     }
+  },
+  // ============================================
+  // Phase 1: Network/Cookies Tools
+  // ============================================
+  {
+    name: 'cookies_get',
+    description: 'Get cookies for the current page or specified URLs',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        urls: { type: 'array', items: { type: 'string' }, description: 'URLs to get cookies for (optional)' }
+      }
+    }
+  },
+  {
+    name: 'cookies_set',
+    description: 'Set one or more cookies',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        cookies: {
+          oneOf: [
+            {
+              type: 'object',
+              properties: {
+                name: { type: 'string' },
+                value: { type: 'string' },
+                domain: { type: 'string' },
+                path: { type: 'string' },
+                secure: { type: 'boolean' },
+                httpOnly: { type: 'boolean' },
+                sameSite: { type: 'string', enum: ['Strict', 'Lax', 'None'] },
+                expires: { type: 'number', description: 'Unix timestamp' }
+              },
+              required: ['name', 'value']
+            },
+            {
+              type: 'array',
+              items: { type: 'object' }
+            }
+          ],
+          description: 'Cookie or array of cookies to set'
+        }
+      },
+      required: ['cookies']
+    }
+  },
+  {
+    name: 'cookies_delete',
+    description: 'Delete a specific cookie',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        name: { type: 'string', description: 'Cookie name to delete' },
+        url: { type: 'string', description: 'URL to scope deletion' },
+        domain: { type: 'string', description: 'Domain to scope deletion' },
+        path: { type: 'string', description: 'Path to scope deletion' }
+      },
+      required: ['name']
+    }
+  },
+  {
+    name: 'cookies_clear',
+    description: 'Clear all browser cookies',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' }
+      }
+    }
+  },
+  {
+    name: 'network_headers',
+    description: 'Set extra HTTP headers for all requests',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        headers: { type: 'object', description: 'Headers object { "Header-Name": "value" }' }
+      },
+      required: ['headers']
+    }
+  },
+  {
+    name: 'network_cache',
+    description: 'Enable or disable network cache',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        disabled: { type: 'boolean', description: 'Set to true to disable cache' }
+      }
+    }
+  },
+  {
+    name: 'network_block',
+    description: 'Block URLs matching patterns',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        urls: { type: 'array', items: { type: 'string' }, description: 'URL patterns to block' }
+      },
+      required: ['urls']
+    }
+  },
+  {
+    name: 'page_reload',
+    description: 'Reload the current page',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        ignoreCache: { type: 'boolean', description: 'Bypass cache on reload' },
+        scriptToEvaluateOnLoad: { type: 'string', description: 'Script to inject on load' }
+      }
+    }
+  },
+  {
+    name: 'page_wait_for_load',
+    description: 'Wait for page load or DOMContentLoaded event',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        waitUntil: { type: 'string', enum: ['load', 'domcontentloaded'], description: 'Event to wait for' },
+        timeoutMs: { type: 'number', description: 'Timeout in milliseconds' }
+      }
+    }
+  },
+  {
+    name: 'page_wait_for_network_idle',
+    description: 'Wait until network activity stops',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        idleMs: { type: 'number', description: 'How long network must be idle (default 500ms)' },
+        timeoutMs: { type: 'number', description: 'Timeout in milliseconds' },
+        maxInflight: { type: 'number', description: 'Max concurrent requests to consider idle (default 0)' }
+      }
+    }
+  },
+  {
+    name: 'network_wait_for_response',
+    description: 'Wait for a specific network response',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        url: { type: 'string', description: 'URL substring to match' },
+        urlRegex: { type: 'string', description: 'URL regex pattern to match' },
+        method: { type: 'string', description: 'HTTP method to match' },
+        status: { type: 'number', description: 'Status code to match' },
+        resourceType: { type: 'string', description: 'Resource type to match' },
+        timeoutMs: { type: 'number', description: 'Timeout in milliseconds' }
+      }
+    }
+  },
+  // ============================================
+  // Phase 2: DOM Tools
+  // ============================================
+  {
+    name: 'element_query',
+    description: 'Find element using CSS selector (native CDP, faster than JS)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        selector: { type: 'string', description: 'CSS selector' },
+        nodeId: { type: 'number', description: 'Parent node ID (optional, uses document root)' }
+      },
+      required: ['selector']
+    }
+  },
+  {
+    name: 'element_query_all',
+    description: 'Find all elements matching CSS selector',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        selector: { type: 'string', description: 'CSS selector' },
+        nodeId: { type: 'number', description: 'Parent node ID (optional)' }
+      },
+      required: ['selector']
+    }
+  },
+  {
+    name: 'element_scroll_into_view',
+    description: 'Scroll element into viewport',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        nodeId: { type: 'number', description: 'Element node ID' }
+      },
+      required: ['nodeId']
+    }
+  },
+  {
+    name: 'element_box_model',
+    description: 'Get element position and dimensions',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        nodeId: { type: 'number', description: 'Element node ID' }
+      },
+      required: ['nodeId']
+    }
+  },
+  {
+    name: 'element_focus',
+    description: 'Focus a specific element',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        nodeId: { type: 'number', description: 'Element node ID' }
+      },
+      required: ['nodeId']
+    }
+  },
+  {
+    name: 'element_html',
+    description: 'Get outer HTML of an element',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        nodeId: { type: 'number', description: 'Element node ID' }
+      },
+      required: ['nodeId']
+    }
+  },
+  // ============================================
+  // Phase 3: Dialog/File Tools
+  // ============================================
+  {
+    name: 'dialog_handle',
+    description: 'Accept or dismiss a JavaScript dialog (alert/confirm/prompt)',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        accept: { type: 'boolean', description: 'Accept (true) or dismiss (false)' },
+        promptText: { type: 'string', description: 'Text to enter for prompt dialogs' }
+      }
+    }
+  },
+  {
+    name: 'dialog_wait',
+    description: 'Wait for a JavaScript dialog to appear',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        timeoutMs: { type: 'number', description: 'Timeout in milliseconds' },
+        autoHandle: { type: 'boolean', description: 'Automatically handle the dialog' },
+        action: { type: 'string', enum: ['accept', 'dismiss'], description: 'Action if autoHandle is true' },
+        promptText: { type: 'string', description: 'Text for prompt if autoHandle is true' }
+      }
+    }
+  },
+  {
+    name: 'file_upload',
+    description: 'Set files on a file input element',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        files: { type: 'array', items: { type: 'string' }, description: 'File paths (WSL paths auto-converted to Windows)' },
+        nodeId: { type: 'number', description: 'File input element node ID' },
+        backendNodeId: { type: 'number', description: 'Backend node ID (from file_chooser_wait)' }
+      },
+      required: ['files']
+    }
+  },
+  {
+    name: 'file_chooser_wait',
+    description: 'Wait for file chooser dialog to open',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        timeoutMs: { type: 'number', description: 'Timeout in milliseconds' }
+      }
+    }
+  },
+  // ============================================
+  // Phase 4: Emulation Tools
+  // ============================================
+  {
+    name: 'emulate_device',
+    description: 'Set device viewport, scale, and mobile mode',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        width: { type: 'number', description: 'Viewport width' },
+        height: { type: 'number', description: 'Viewport height' },
+        deviceScaleFactor: { type: 'number', description: 'Device scale factor (DPR)' },
+        mobile: { type: 'boolean', description: 'Enable mobile mode' },
+        touch: { type: 'boolean', description: 'Enable touch emulation' },
+        maxTouchPoints: { type: 'number', description: 'Max touch points' },
+        screenOrientation: { type: 'object', description: '{ type: "portraitPrimary"|"landscapePrimary", angle: number }' },
+        clear: { type: 'boolean', description: 'Clear device overrides' }
+      }
+    }
+  },
+  {
+    name: 'emulate_geolocation',
+    description: 'Override geolocation',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        latitude: { type: 'number', description: 'Latitude' },
+        longitude: { type: 'number', description: 'Longitude' },
+        accuracy: { type: 'number', description: 'Accuracy in meters' },
+        clear: { type: 'boolean', description: 'Clear geolocation override' }
+      }
+    }
+  },
+  {
+    name: 'emulate_timezone',
+    description: 'Override timezone',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        timezoneId: { type: 'string', description: 'IANA timezone ID (e.g., "America/New_York")' }
+      },
+      required: ['timezoneId']
+    }
+  },
+  {
+    name: 'emulate_user_agent',
+    description: 'Override user agent string',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        userAgent: { type: 'string', description: 'User agent string' },
+        platform: { type: 'string', description: 'Platform override' },
+        acceptLanguage: { type: 'string', description: 'Accept-Language header value' }
+      },
+      required: ['userAgent']
+    }
+  },
+  // ============================================
+  // Phase 5: Console/Performance Tools
+  // ============================================
+  {
+    name: 'console_enable',
+    description: 'Enable console message capture',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        enableLog: { type: 'boolean', description: 'Also enable browser log capture' }
+      }
+    }
+  },
+  {
+    name: 'console_messages',
+    description: 'Get captured console messages',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' },
+        since: { type: 'number', description: 'Timestamp to filter messages after' },
+        includeLogs: { type: 'boolean', description: 'Include browser log entries' }
+      }
+    }
+  },
+  {
+    name: 'console_clear',
+    description: 'Clear console messages',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' }
+      }
+    }
+  },
+  {
+    name: 'performance_metrics',
+    description: 'Get page performance metrics',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' }
+      }
+    }
+  },
+  {
+    name: 'page_layout_metrics',
+    description: 'Get viewport and content dimensions',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tabId: { type: 'number', description: 'Tab ID' }
+      }
+    }
   }
 ];
 

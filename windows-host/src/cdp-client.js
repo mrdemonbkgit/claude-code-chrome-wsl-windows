@@ -137,6 +137,15 @@ class CDPClient {
 
   // Connect to a specific target (tab)
   async connectToTarget(targetId, options = {}) {
+    // PERFORMANCE FIX: Check if already connected BEFORE making HTTP call
+    // This saves ~10-50ms per tool call when connection is already established
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      // If no specific targetId requested, or we're connected to the right one, skip HTTP
+      if (!targetId || this.targetId === targetId) {
+        return { id: this.targetId, cached: true };
+      }
+    }
+
     const targets = await this.getTargets();
     const target = targetId
       ? targets.find(t => t.id === targetId)
@@ -146,7 +155,7 @@ class CDPClient {
       throw new Error('No suitable target found');
     }
 
-    // If already connected to this target, just return
+    // Double-check after HTTP call (race condition prevention)
     if (this.ws && this.targetId === target.id && this.ws.readyState === WebSocket.OPEN) {
       return target;
     }

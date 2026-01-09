@@ -16,16 +16,58 @@ const WS_PORT = 19222;
 const CDP_PORT = 9222;
 const LOG_FILE = path.join(process.env.TEMP || 'C:\\Temp', 'claude-chrome-bridge.log');
 
+// Performance: Use buffered async logging instead of sync writes
+const logBuffer = [];
+let logFlushPending = false;
+const LOG_FLUSH_INTERVAL = 1000; // Flush every 1 second
+const LOG_BUFFER_MAX = 100; // Or when buffer reaches 100 entries
+
+function flushLogBuffer() {
+  if (logBuffer.length === 0) {
+    logFlushPending = false;
+    return;
+  }
+  const toWrite = logBuffer.splice(0, logBuffer.length).join('');
+  fs.appendFile(LOG_FILE, toWrite, (err) => {
+    if (err) console.error('Log write error:', err.message);
+    logFlushPending = false;
+    // Check if more logs accumulated during write
+    if (logBuffer.length > 0) {
+      scheduleFlush();
+    }
+  });
+}
+
+function scheduleFlush() {
+  if (!logFlushPending) {
+    logFlushPending = true;
+    setImmediate(flushLogBuffer); // Use setImmediate for faster flushing
+  }
+}
+
+// Log level filtering - set via LOG_LEVEL env var (debug, info, warn, error)
+const LOG_LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
+const currentLogLevel = LOG_LEVELS[process.env.LOG_LEVEL?.toLowerCase()] ?? LOG_LEVELS.info;
+
 function log(level, message, data = null) {
+  // Skip debug logs unless LOG_LEVEL=debug
+  if (LOG_LEVELS[level] < currentLogLevel) return;
+
   const timestamp = new Date().toISOString();
   const logLine = `[${timestamp}] [CDP Host] [${level.toUpperCase()}] ${message}`;
   console.error(logLine);
-  if (data) console.error(JSON.stringify(data, null, 2));
+  if (data && level !== 'debug') console.error(JSON.stringify(data, null, 2));
 
-  try {
-    const fileLog = data ? `${logLine}\n${JSON.stringify(data, null, 2)}\n` : `${logLine}\n`;
-    fs.appendFileSync(LOG_FILE, fileLog);
-  } catch (e) {}
+  // Buffer for async write
+  const fileLog = data ? `${logLine}\n${JSON.stringify(data, null, 2)}\n` : `${logLine}\n`;
+  logBuffer.push(fileLog);
+
+  // Flush immediately on error, or schedule for others
+  if (level === 'error' || logBuffer.length >= LOG_BUFFER_MAX) {
+    flushLogBuffer();
+  } else {
+    scheduleFlush();
+  }
 }
 
 class CDPHost {
@@ -92,6 +134,7 @@ class CDPHost {
   }
 
   async handleToolCall(bridgeMessage) {
+    const startTime = Date.now();
     const payload = bridgeMessage.payload;
     const toolName = payload?.params?.name || payload?.tool;
     const args = payload?.params?.arguments || payload?.arguments || {};
@@ -228,10 +271,12 @@ class CDPHost {
           throw new Error(`Unknown tool: ${toolName}`);
       }
 
-      log('debug', `Tool ${toolName} completed successfully`);
+      const elapsed = Date.now() - startTime;
+      log('info', `[PERF] Tool ${toolName} completed in ${elapsed}ms`);
       this.sendResponse(bridgeMessage.id, result);
     } catch (error) {
-      log('error', `Tool ${toolName} failed: ${error.message}\n${error.stack}`);
+      const elapsed = Date.now() - startTime;
+      log('error', `Tool ${toolName} failed after ${elapsed}ms: ${error.message}\n${error.stack}`);
       this.sendError(bridgeMessage.id, error.message);
     }
   }

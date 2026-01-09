@@ -630,6 +630,13 @@ class MCPServer {
       this.ws.on('close', () => {
         this.connected = false;
         log('Disconnected from Windows host');
+
+        // Clean up all pending requests - they'll never get responses
+        for (const [reqId, pending] of this.pendingRequests) {
+          if (pending.timeoutId) clearTimeout(pending.timeoutId);
+          this.sendError(reqId, -32000, 'Connection to Windows host lost');
+        }
+        this.pendingRequests.clear();
       });
 
       this.ws.on('error', (error) => {
@@ -740,8 +747,24 @@ class MCPServer {
       }
     }
 
-    // Store pending request for response matching
-    this.pendingRequests.set(message.id, { originalId: message.id });
+    // Store pending request for response matching with timeout
+    const REQUEST_TIMEOUT_MS = 60000; // 60 second timeout
+    const startTime = Date.now();
+
+    const timeoutId = setTimeout(() => {
+      if (this.pendingRequests.has(message.id)) {
+        this.pendingRequests.delete(message.id);
+        log(`Request ${message.id} timed out after ${REQUEST_TIMEOUT_MS}ms`);
+        this.sendError(message.id, -32000, `Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s`);
+      }
+    }, REQUEST_TIMEOUT_MS);
+
+    this.pendingRequests.set(message.id, {
+      originalId: message.id,
+      timeoutId,
+      startTime,
+      toolName
+    });
 
     // Forward to Windows host / Chrome extension
     // Use MCP-style JSON-RPC format that Chrome extension expects
@@ -779,6 +802,19 @@ class MCPServer {
 
         if (reqId && (this.pendingRequests.has(reqId) || this.pendingRequests.has(numReqId))) {
           const actualKey = this.pendingRequests.has(reqId) ? reqId : numReqId;
+          const pendingReq = this.pendingRequests.get(actualKey);
+
+          // Clear timeout to prevent memory leak
+          if (pendingReq?.timeoutId) {
+            clearTimeout(pendingReq.timeoutId);
+          }
+
+          // Log performance timing
+          if (pendingReq?.startTime) {
+            const latency = Date.now() - pendingReq.startTime;
+            log(`[PERF] ${pendingReq.toolName || 'unknown'} completed in ${latency}ms`);
+          }
+
           this.pendingRequests.delete(actualKey);
 
           if (payload.error) {

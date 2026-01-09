@@ -10,7 +10,7 @@
 - Console error detection
 - File upload functionality
 
-**Test Site**: We'll use httpbin.org for API testing + a simple local test page for interactive elements.
+**Test Site**: Local test page (`C:\test-pages\ecommerce-test.html`) served via Python or Node HTTP server.
 
 ---
 
@@ -170,9 +170,19 @@ Save as `C:\test-pages\ecommerce-test.html`:
 
 ```powershell
 cd C:\test-pages
-node server.js
-# Or: python -m http.server 8080
+python -m http.server 8080
+# Or: npx serve -p 8080
 ```
+
+### 3. Chrome Geolocation Permissions
+
+> **NOTE**: Geolocation requires permission. For automated testing:
+> - Use a Chrome profile with geolocation pre-granted for localhost
+> - Or run Chrome with `--enable-features=PermissionAutoRevoke` disabled
+> - The `emulate_geolocation` CDP tool overrides the actual location but
+>   the page still needs permission to call `navigator.geolocation`
+
+To pre-grant permission, navigate to the test page manually once and allow location access.
 
 ---
 
@@ -279,7 +289,36 @@ Tools: cookies_clear, cookies_set, network_headers, network_cache, network_block
    }
    ```
 
-3. **Set custom headers (API key, tracking)**
+3. **Set a tracking cookie (to test delete later)**
+   ```
+   cookies_set {
+     tabId,
+     cookies: {
+       name: "tracking_id",
+       value: "track_xyz789",
+       domain: "localhost",
+       path: "/"
+     }
+   }
+   ```
+
+4. **Delete tracking cookie (privacy compliance)**
+   ```
+   cookies_delete {
+     tabId,
+     name: "tracking_id",
+     domain: "localhost"
+   }
+   ```
+
+5. **Verify tracking cookie was deleted**
+   ```
+   cookies_get { tabId }
+   → Assert: tracking_id cookie is NOT present
+   → Assert: session_token cookie IS still present
+   ```
+
+6. **Set custom headers (API key, tracking)**
    ```
    network_headers {
      tabId,
@@ -291,12 +330,12 @@ Tools: cookies_clear, cookies_set, network_headers, network_cache, network_block
    }
    ```
 
-4. **Disable cache for fresh content**
+7. **Disable cache for fresh content**
    ```
    network_cache { tabId, disabled: true }
    ```
 
-5. **Block analytics/tracking (for cleaner testing)**
+8. **Block analytics/tracking (for cleaner testing)**
    ```
    network_block {
      tabId,
@@ -378,7 +417,20 @@ Tools: element_query, element_focus, element_html, element_box_model, computer (
    computer { tabId, action: "left_click", coordinate: [btn_x, btn_y] }
    ```
 
-7. **Verify login status HTML**
+7. **Wait for login API response**
+   ```
+   network_wait_for_response {
+     tabId,
+     urlRegex: ".*api/login.*",    # Use regex for flexible URL matching
+     method: "POST",
+     timeoutMs: 5000
+   }
+   → May timeout if no backend (expected for static test page)
+   → In real scenario, validates request was sent with correct headers
+   → Alternative: use full URL "http://localhost:8080/api/login"
+   ```
+
+8. **Verify login status HTML**
    ```
    element_query { tabId, selector: "#login-status" }
    element_html { tabId, nodeId: <status_nodeId> }
@@ -452,22 +504,28 @@ Tools: element_query_all, element_scroll_into_view, element_box_model
 ### Stage 8: Dialog Handling - Add to Cart
 
 ```
-Tools: dialog_wait, dialog_handle
+Tools: dialog_wait, dialog_handle, element_query, element_box_model
 ```
 
-1. **Setup dialog wait (will block until dialog appears)**
-   ```
-   # In practice, start this before triggering dialog
-   dialog_wait { tabId, timeoutMs: 5000, autoHandle: false }
-   ```
-
-2. **Click "Add to Cart" button**
+1. **Find and get coordinates for "Add to Cart" button**
    ```
    element_query { tabId, selector: "#product-3 button" }
+   element_box_model { tabId, nodeId: <button_nodeId> }
+   → Calculate center: x = (content[0] + content[2])/2, y = (content[1] + content[5])/2
+   ```
+
+2. **Click button (triggers alert dialog)**
+   ```
    computer { tabId, action: "left_click", coordinate: [x, y] }
    ```
 
-3. **Handle the alert dialog**
+3. **Wait for alert dialog to appear**
+   ```
+   dialog_wait { tabId, timeoutMs: 5000, autoHandle: false }
+   → Returns { type: "alert", message: "Product 3 added to cart!" }
+   ```
+
+4. **Handle the alert dialog**
    ```
    dialog_handle { tabId, accept: true }
    ```
@@ -486,39 +544,73 @@ Tools: dialog_wait, dialog_handle (confirm dialog)
    element_scroll_into_view { tabId, nodeId }
    ```
 
-2. **Click checkout**
+2. **Get checkout button coordinates**
    ```
    element_box_model { tabId, nodeId }
+   → Calculate center coordinates [x, y]
+   ```
+
+3. **Click checkout (triggers confirm dialog)**
+   ```
    computer { tabId, action: "left_click", coordinate: [x, y] }
    ```
 
-3. **Handle confirm dialog (decline first)**
+4. **Wait for confirm dialog**
    ```
    dialog_wait { tabId, timeoutMs: 3000 }
    → Returns { type: "confirm", message: "Complete purchase for $2197?" }
+   ```
 
+5. **Decline first purchase**
+   ```
    dialog_handle { tabId, accept: false }
    ```
 
-4. **Click checkout again, accept this time**
+6. **Click checkout again**
    ```
    computer { tabId, action: "left_click", coordinate: [x, y] }
+   ```
+
+7. **Wait for confirm dialog again**
+   ```
+   dialog_wait { tabId, timeoutMs: 3000 }
+   ```
+
+8. **Accept purchase (triggers immediate thank-you alert)**
+   ```
+   # IMPORTANT: The thank-you alert appears IMMEDIATELY after accepting confirm.
+   # We must use autoHandle OR run dialog_wait in parallel with dialog_handle.
+
+   # Option A: Use autoHandle for the follow-up alert
    dialog_handle { tabId, accept: true }
 
-   # Handle the thank you alert
+   # The thank-you alert appears instantly - wait for it
+   dialog_wait { tabId, timeoutMs: 1000 }
+   → Returns { type: "alert", message: "Thank you for your purchase!" }
+   ```
+
+9. **Dismiss thank you alert**
+   ```
    dialog_handle { tabId, accept: true }
    ```
+
+> **NOTE**: If `dialog_wait` misses the alert due to race condition, use
+> `dialog_wait { autoHandle: true, action: "accept" }` on step 8 to auto-handle
+> the follow-up alert, or ensure your MCP implementation queues dialog events.
 
 ---
 
 ### Stage 10: File Upload Test
 
 ```
-Tools: element_query, file_upload, file_chooser_wait
+Tools: element_query, file_upload, file_chooser_wait, element_box_model
 ```
+
+#### Method A: Direct File Upload (CDP-based)
 
 1. **Create test file (in WSL)**
    ```bash
+   mkdir -p /mnt/c/temp
    echo "Test receipt content" > /mnt/c/temp/receipt.txt
    ```
 
@@ -539,6 +631,59 @@ Tools: element_query, file_upload, file_chooser_wait
    ```
 
 4. **Verify file selected**
+   ```
+   javascript_tool {
+     tabId,
+     action: "javascript_exec",
+     text: "document.getElementById('receipt-upload').files[0]?.name"
+   }
+   → Should return "receipt.txt"
+   ```
+
+#### Method B: Click-Triggered File Chooser
+
+> **IMPORTANT**: Steps 5-6 must run IN PARALLEL to avoid blocking.
+> `file_chooser_wait` registers a listener that waits for the file dialog to open.
+> The click triggers the dialog. Both must happen concurrently.
+
+5. **Clear previous file selection**
+   ```
+   javascript_tool {
+     tabId,
+     action: "javascript_exec",
+     text: "document.getElementById('receipt-upload').value = ''"
+   }
+   ```
+
+6. **Get file input coordinates**
+   ```
+   element_box_model { tabId, nodeId: <input_nodeId> }
+   → Calculate center coordinates [x, y]
+   ```
+
+7. **Start file chooser wait AND click in parallel**
+   ```
+   # PARALLEL EXECUTION REQUIRED:
+   # Tool 1: Register file chooser listener
+   file_chooser_wait { tabId, timeoutMs: 10000 }
+
+   # Tool 2: Click to trigger file dialog (run simultaneously)
+   computer { tabId, action: "left_click", coordinate: [x, y] }
+
+   # file_chooser_wait returns backendNodeId when dialog opens
+   ```
+
+8. **Upload file via chooser**
+   ```
+   file_upload {
+     tabId,
+     backendNodeId: <from_file_chooser_wait>,
+     files: ["/mnt/c/temp/receipt.txt"]
+   }
+   → Simulates user selecting file in native dialog
+   ```
+
+9. **Verify file selected via chooser**
    ```
    javascript_tool {
      tabId,
@@ -606,30 +751,61 @@ Tools: performance_metrics, page_layout_metrics
 ### Stage 13: Cleanup & Reset
 
 ```
-Tools: emulate_device (clear), cookies_clear, network_block (clear)
+Tools: emulate_device (clear), emulate_geolocation (clear), cookies_clear,
+       network_block (clear), network_headers, network_cache
 ```
 
-1. **Clear device emulation**
+> **IMPORTANT**: Reset ALL emulation state to prevent leaking to subsequent tests.
+
+1. **Clear device emulation (viewport, touch, mobile)**
    ```
    emulate_device { tabId, clear: true }
    ```
 
-2. **Clear cookies**
+2. **Clear geolocation override**
+   ```
+   emulate_geolocation { tabId, clear: true }
+   ```
+
+3. **Clear timezone override**
+   ```
+   # Note: emulate_timezone has no clear option in CDP
+   # Set to a neutral/default timezone or leave as-is
+   emulate_timezone { tabId, timezoneId: "UTC" }
+   ```
+
+4. **Reset user agent to default**
+   ```
+   # Note: emulate_user_agent has no clear option in CDP
+   # Page reload will restore default UA, or set explicitly:
+   emulate_user_agent {
+     tabId,
+     userAgent: ""    # Empty string to reset (implementation-dependent)
+   }
+   ```
+
+5. **Clear custom network headers**
+   ```
+   network_headers { tabId, headers: {} }
+   → Empty object removes all custom headers
+   ```
+
+6. **Clear cookies**
    ```
    cookies_clear { tabId }
    ```
 
-3. **Unblock URLs**
+7. **Unblock URLs**
    ```
    network_block { tabId, urls: [] }
    ```
 
-4. **Re-enable cache**
+8. **Re-enable cache**
    ```
    network_cache { tabId, disabled: false }
    ```
 
-5. **Page reload to verify clean state**
+9. **Page reload to verify clean state**
    ```
    page_reload { tabId, ignoreCache: true }
    ```
@@ -638,11 +814,13 @@ Tools: emulate_device (clear), cookies_clear, network_block (clear)
 
 ## Tool Coverage Matrix
 
+**All 30 CDP tools are explicitly executed in this test plan.**
+
 | # | Tool | Stage(s) | Usage |
 |---|------|----------|-------|
 | 1 | cookies_get | 4 | Verify session cookie |
-| 2 | cookies_set | 3 | Set session token |
-| 3 | cookies_delete | - | (covered in clear) |
+| 2 | cookies_set | 3 | Set session + tracking tokens |
+| 3 | cookies_delete | 3 | Delete tracking cookie (privacy) |
 | 4 | cookies_clear | 3, 13 | Fresh session, cleanup |
 | 5 | network_headers | 3 | API key, test headers |
 | 6 | network_cache | 3, 13 | Disable/enable cache |
@@ -650,17 +828,17 @@ Tools: emulate_device (clear), cookies_clear, network_block (clear)
 | 8 | page_reload | 13 | Clean state reload |
 | 9 | page_wait_for_load | 4 | Wait for navigation |
 | 10 | page_wait_for_network_idle | 4 | Wait for async resources |
-| 11 | network_wait_for_response | 5 | Wait for login API (optional) |
+| 11 | network_wait_for_response | 5 | Wait for login API request |
 | 12 | element_query | 5-10 | Find elements |
 | 13 | element_query_all | 7 | Find all products |
 | 14 | element_scroll_into_view | 7, 9 | Scroll to elements |
-| 15 | element_box_model | 5-9 | Get click coordinates |
+| 15 | element_box_model | 5, 6, 8, 9, 10 | Get click coordinates |
 | 16 | element_focus | 5 | Focus form inputs |
 | 17 | element_html | 5 | Verify login status |
 | 18 | dialog_handle | 8, 9 | Handle alerts/confirms |
 | 19 | dialog_wait | 8, 9 | Wait for dialogs |
-| 20 | file_upload | 10 | Upload receipt |
-| 21 | file_chooser_wait | 10 | (optional, for click-triggered) |
+| 20 | file_upload | 10 | Upload receipt (both methods) |
+| 21 | file_chooser_wait | 10 | Click-triggered file chooser |
 | 22 | emulate_device | 2, 13 | Mobile viewport |
 | 23 | emulate_geolocation | 2 | NYC location |
 | 24 | emulate_timezone | 2 | New York timezone |
@@ -700,6 +878,13 @@ Tools: emulate_device (clear), cookies_clear, network_block (clear)
 
 ---
 
-## Automation Script
+## Execution Notes
 
-See `tests/real-world-test.js` for automated execution of this test plan.
+This test plan is designed for manual execution via Claude Code MCP tools. Each stage can be executed sequentially using the `chrome-bridge` MCP server.
+
+### Prerequisites Checklist
+- [ ] Windows host running with Chrome in debug mode
+- [ ] `C:\test-pages\ecommerce-test.html` created from template above
+- [ ] `C:\temp` directory exists and is writable
+- [ ] HTTP server running (e.g., `python -m http.server 8080` in `C:\test-pages`)
+- [ ] WSL bridge connected to Windows host

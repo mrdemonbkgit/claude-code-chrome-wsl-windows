@@ -315,7 +315,7 @@ class CDPHost {
   }
 
   async handleNavigate(args) {
-    if (args.tabId) {
+    if (args.tabId !== undefined && args.tabId !== null) {
       await this.cdp.connectToTarget(args.tabId);
     }
     const result = await this.cdp.navigate(args.url);
@@ -327,7 +327,7 @@ class CDPHost {
 
     switch (action) {
       case 'screenshot':
-        if (args.tabId) {
+        if (args.tabId !== undefined && args.tabId !== null) {
           await this.cdp.connectToTarget(args.tabId);
         } else if (!this.cdp.ws) {
           await this.cdp.connectToTarget();
@@ -341,26 +341,26 @@ class CDPHost {
 
       case 'left_click':
       case 'click':
-        if (args.tabId) await this.cdp.connectToTarget(args.tabId);
+        if (args.tabId !== undefined && args.tabId !== null) await this.cdp.connectToTarget(args.tabId);
         else if (!this.cdp.ws) await this.cdp.connectToTarget();
         await this.cdp.click(args.coordinate[0], args.coordinate[1]);
         return { success: true };
 
       case 'double_click':
-        if (args.tabId) await this.cdp.connectToTarget(args.tabId);
+        if (args.tabId !== undefined && args.tabId !== null) await this.cdp.connectToTarget(args.tabId);
         else if (!this.cdp.ws) await this.cdp.connectToTarget();
         await this.cdp.click(args.coordinate[0], args.coordinate[1]);
         await this.cdp.click(args.coordinate[0], args.coordinate[1]);
         return { success: true };
 
       case 'type':
-        if (args.tabId) await this.cdp.connectToTarget(args.tabId);
+        if (args.tabId !== undefined && args.tabId !== null) await this.cdp.connectToTarget(args.tabId);
         else if (!this.cdp.ws) await this.cdp.connectToTarget();
         await this.cdp.type(args.text);
         return { success: true };
 
       case 'key':
-        if (args.tabId) await this.cdp.connectToTarget(args.tabId);
+        if (args.tabId !== undefined && args.tabId !== null) await this.cdp.connectToTarget(args.tabId);
         else if (!this.cdp.ws) await this.cdp.connectToTarget();
         await this.cdp.send('Input.dispatchKeyEvent', {
           type: 'keyDown',
@@ -373,7 +373,7 @@ class CDPHost {
         return { success: true };
 
       case 'scroll':
-        if (args.tabId) await this.cdp.connectToTarget(args.tabId);
+        if (args.tabId !== undefined && args.tabId !== null) await this.cdp.connectToTarget(args.tabId);
         else if (!this.cdp.ws) await this.cdp.connectToTarget();
         const x = args.coordinate?.[0] || 0;
         const y = args.coordinate?.[1] || 0;
@@ -395,7 +395,7 @@ class CDPHost {
   }
 
   async handleReadPage(args) {
-    if (args.tabId) {
+    if (args.tabId !== undefined && args.tabId !== null) {
       await this.cdp.connectToTarget(args.tabId);
     } else if (!this.cdp.ws) {
       await this.cdp.connectToTarget();
@@ -407,7 +407,7 @@ class CDPHost {
   }
 
   async handleGetPageText(args) {
-    if (args.tabId) {
+    if (args.tabId !== undefined && args.tabId !== null) {
       await this.cdp.connectToTarget(args.tabId);
     } else if (!this.cdp.ws) {
       await this.cdp.connectToTarget();
@@ -418,7 +418,7 @@ class CDPHost {
   }
 
   async handleJavaScript(args) {
-    if (args.tabId) {
+    if (args.tabId !== undefined && args.tabId !== null) {
       await this.cdp.connectToTarget(args.tabId);
     } else if (!this.cdp.ws) {
       await this.cdp.connectToTarget();
@@ -429,7 +429,7 @@ class CDPHost {
   }
 
   async handleFind(args) {
-    if (args.tabId) {
+    if (args.tabId !== undefined && args.tabId !== null) {
       await this.cdp.connectToTarget(args.tabId);
     } else if (!this.cdp.ws) {
       await this.cdp.connectToTarget();
@@ -453,7 +453,7 @@ class CDPHost {
   }
 
   async handleFormInput(args) {
-    if (args.tabId) {
+    if (args.tabId !== undefined && args.tabId !== null) {
       await this.cdp.connectToTarget(args.tabId);
     } else if (!this.cdp.ws) {
       await this.cdp.connectToTarget();

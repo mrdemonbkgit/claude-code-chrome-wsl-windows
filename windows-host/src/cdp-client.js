@@ -114,6 +114,7 @@ class CDPClient {
   }
 
   // Get list of available targets (tabs) from Chrome
+  // Sorted by ID for consistent ordering (Chrome's /json/list order is not stable)
   async getTargets() {
     return new Promise((resolve, reject) => {
       const req = http.get(`http://localhost:${this.port}/json/list`, (res) => {
@@ -121,7 +122,10 @@ class CDPClient {
         res.on('data', chunk => data += chunk);
         res.on('end', () => {
           try {
-            resolve(JSON.parse(data));
+            const targets = JSON.parse(data);
+            // Sort by ID for consistent ordering across calls
+            targets.sort((a, b) => a.id.localeCompare(b.id));
+            resolve(targets);
           } catch (e) {
             reject(new Error(`Failed to parse targets: ${e.message}`));
           }
@@ -136,20 +140,39 @@ class CDPClient {
   }
 
   // Connect to a specific target (tab)
+  // targetId can be:
+  //   - number: index into page targets (0 = first tab, 1 = second tab, etc.)
+  //   - string: exact Chrome target UUID
+  //   - undefined/null: first available page target
   async connectToTarget(targetId, options = {}) {
     // PERFORMANCE FIX: Check if already connected BEFORE making HTTP call
     // This saves ~10-50ms per tool call when connection is already established
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      // If no specific targetId requested, or we're connected to the right one, skip HTTP
-      if (!targetId || this.targetId === targetId) {
+      // For numeric indexes, we must fetch targets to resolve the index
+      // For string IDs or no ID, we can use cached connection
+      if (targetId === undefined || targetId === null ||
+          (typeof targetId === 'string' && this.targetId === targetId)) {
         return { id: this.targetId, cached: true };
       }
     }
 
     const targets = await this.getTargets();
-    const target = targetId
-      ? targets.find(t => t.id === targetId)
-      : targets.find(t => t.type === 'page');
+    const pageTargets = targets.filter(t => t.type === 'page');
+
+    let target;
+    if (typeof targetId === 'number') {
+      // Numeric ID: treat as index into page targets (0 = first, 1 = second, etc.)
+      if (targetId < 0 || targetId >= pageTargets.length) {
+        throw new Error(`Tab index ${targetId} out of range (${pageTargets.length} tabs available)`);
+      }
+      target = pageTargets[targetId];
+    } else if (targetId) {
+      // String ID: exact UUID match
+      target = targets.find(t => t.id === targetId);
+    } else {
+      // No ID: first page target
+      target = pageTargets[0];
+    }
 
     if (!target) {
       throw new Error('No suitable target found');
@@ -168,30 +191,35 @@ class CDPClient {
     this.targetId = target.id;
 
     await new Promise((resolve, reject) => {
-      this.ws = new WebSocket(target.webSocketDebuggerUrl);
+      const newWs = new WebSocket(target.webSocketDebuggerUrl);
+      this.ws = newWs;
 
-      this.ws.on('open', () => {
+      newWs.on('open', () => {
         resolve(target);
       });
 
-      this.ws.on('message', (data) => {
+      newWs.on('message', (data) => {
         this.handleMessage(JSON.parse(data.toString()));
       });
 
-      this.ws.on('error', (err) => {
+      newWs.on('error', (err) => {
         reject(err);
       });
 
-      this.ws.on('close', () => {
-        this.ws = null;
-        this.targetId = null;
-        this.domainsEnabled.clear();
-        this.docVersion = 0;
-        this.rootNodeId = null;
-        // Clear stale event data to prevent memory leaks and stale matches
-        this.eventListeners.clear();
-        this.eventQueue = [];
-        this.networkRequests.clear();
+      newWs.on('close', () => {
+        // Only clear state if this is still the active WebSocket
+        // (prevents old WebSocket close events from clearing new connections)
+        if (this.ws === newWs) {
+          this.ws = null;
+          this.targetId = null;
+          this.domainsEnabled.clear();
+          this.docVersion = 0;
+          this.rootNodeId = null;
+          // Clear stale event data to prevent memory leaks and stale matches
+          this.eventListeners.clear();
+          this.eventQueue = [];
+          this.networkRequests.clear();
+        }
       });
     });
 
@@ -386,7 +414,12 @@ class CDPClient {
     });
 
     if (result.exceptionDetails) {
-      throw new Error(result.exceptionDetails.text);
+      // Extract detailed error information from CDP exception
+      const details = result.exceptionDetails;
+      const exception = details.exception;
+      const errorMessage = exception?.description || exception?.value || details.text || 'Unknown error';
+      const lineInfo = details.lineNumber !== undefined ? ` (line ${details.lineNumber + 1})` : '';
+      throw new Error(`${errorMessage}${lineInfo}`);
     }
 
     return result.result.value;

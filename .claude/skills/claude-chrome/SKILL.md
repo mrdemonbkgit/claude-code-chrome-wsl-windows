@@ -75,6 +75,9 @@ Use mcp__chrome-bridge__computer with:
 ```
 
 #### 3d. Find and click the Send button
+
+**IMPORTANT:** The Send button is identified by its orange/yellow background color class `bg-[#BF8534]`. Do NOT use coordinate-based detection as it's unreliable.
+
 ```
 Use mcp__chrome-bridge__javascript_tool with:
   tabId: <claude_extension_tab_id>
@@ -82,10 +85,11 @@ Use mcp__chrome-bridge__javascript_tool with:
     (() => {
       const buttons = document.querySelectorAll('button');
       for (const btn of buttons) {
-        const rect = btn.getBoundingClientRect();
-        // Send button is in bottom-right area
-        if (rect.y > 700 && rect.x > 280 && rect.width < 60) {
+        // Send button has orange background class bg-[#BF8534]
+        if (btn.className.includes('bg-[#BF8534]')) {
+          const rect = btn.getBoundingClientRect();
           return JSON.stringify({
+            found: true,
             x: Math.round(rect.x + rect.width/2),
             y: Math.round(rect.y + rect.height/2)
           });
@@ -99,7 +103,7 @@ Then click:
 ```
 Use mcp__chrome-bridge__computer with:
   action: "left_click"
-  coordinate: [x, y]  // Send button coordinates
+  coordinate: [x, y]  // Send button coordinates from above
   tabId: <claude_extension_tab_id>
 ```
 
@@ -136,13 +140,14 @@ Parse the returned text to extract Claude's response.
 
 ## Key Information
 
-### CSS Selectors
-- Chat input: `.tiptap.ProseMirror`
+### CSS Selectors & Identifiers
+- Chat input: `.tiptap.ProseMirror` (contenteditable div)
+- Send button: Button with class containing `bg-[#BF8534]` (orange/yellow color)
 - Message bubbles: Check page text for conversation content
 
 ### Typical Coordinates (may vary by viewport)
-- Chat input: approximately (175, 732)
-- Send button: approximately (312, 814)
+- Chat input: approximately (175, 780)
+- Send button: approximately (312, 814) - but always use class-based detection!
 
 ### Extension Details
 - Extension ID: `fcoeoabgfenejglbffodgkkbkcdhcgfn`

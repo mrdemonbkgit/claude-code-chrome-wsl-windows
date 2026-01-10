@@ -9,7 +9,14 @@
 
 const os = require('os');
 const fs = require('fs');
+const path = require('path');
 const WebSocket = require('ws');
+
+// Directory for saving screenshots
+const SCREENSHOT_DIR = path.join(os.tmpdir(), 'claude-chrome-screenshots');
+if (!fs.existsSync(SCREENSHOT_DIR)) {
+  fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+}
 
 const WS_PORT = 19222;
 
@@ -820,14 +827,42 @@ class MCPServer {
           if (payload.error) {
             this.sendError(payload.requestId, -32000, payload.error);
           } else {
-            this.sendResponse(payload.requestId, {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(payload.result || payload)
-                }
-              ]
-            });
+            const result = payload.result || payload;
+
+            // Handle image responses (screenshots) - save to file and return path
+            if (result.type === 'image' && result.data) {
+              const ext = (result.mediaType || 'image/jpeg').split('/')[1] || 'jpg';
+              const filename = `screenshot-${Date.now()}.${ext}`;
+              const filepath = path.join(SCREENSHOT_DIR, filename);
+
+              // Decode base64 and save to file
+              const imageBuffer = Buffer.from(result.data, 'base64');
+              fs.writeFileSync(filepath, imageBuffer);
+
+              this.sendResponse(payload.requestId, {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify({
+                      type: 'screenshot',
+                      path: filepath,
+                      size: imageBuffer.length,
+                      format: ext
+                    })
+                  }
+                ]
+              });
+            } else {
+              // Regular text/JSON responses
+              this.sendResponse(payload.requestId, {
+                content: [
+                  {
+                    type: 'text',
+                    text: JSON.stringify(result)
+                  }
+                ]
+              });
+            }
           }
         }
       }

@@ -332,11 +332,14 @@ class CDPHost {
         } else if (!this.cdp.ws) {
           await this.cdp.connectToTarget();
         }
-        const screenshot = await this.cdp.takeScreenshot();
+        const screenshot = await this.cdp.takeScreenshot({
+          format: args.format,  // optional: 'jpeg' (default), 'png', or 'webp'
+          quality: args.quality // optional: 0-100 for jpeg/webp
+        });
         return {
           type: 'image',
-          data: screenshot,
-          mediaType: 'image/png'
+          data: screenshot.data,
+          mediaType: `image/${screenshot.format}`
         };
 
       case 'left_click':

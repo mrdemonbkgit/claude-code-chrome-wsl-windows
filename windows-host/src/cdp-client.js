@@ -383,12 +383,52 @@ class CDPClient {
       await this.connectToTarget();
     }
 
-    const result = await this.send('Page.captureScreenshot', {
-      format: options.format || 'png',
-      quality: options.quality || 80
-    });
+    // Anthropic recommends XGA (1024x768) for computer use
+    // https://github.com/anthropics/anthropic-quickstarts/tree/main/computer-use-demo
+    const TARGET_WIDTH = 1024;
+    const TARGET_HEIGHT = 768;
 
-    return result.data; // base64 encoded image
+    // Use JPEG for best compression
+    const format = options.format || 'jpeg';
+    const params = { format };
+
+    // Quality 70 for good readability (file saved to disk, not base64)
+    if (format !== 'png') {
+      params.quality = options.quality || 70;
+    }
+
+    params.captureBeyondViewport = false;
+    params.optimizeForSpeed = true;
+
+    // Get current viewport dimensions
+    const layoutMetrics = await this.send('Page.getLayoutMetrics');
+    const viewport = layoutMetrics.cssLayoutViewport || layoutMetrics.layoutViewport;
+    const currentWidth = viewport.clientWidth || 1920;
+    const currentHeight = viewport.clientHeight || 1080;
+
+    // Calculate scale to fit within XGA while preserving aspect ratio
+    const scaleX = TARGET_WIDTH / currentWidth;
+    const scaleY = TARGET_HEIGHT / currentHeight;
+    const scale = Math.min(scaleX, scaleY, 1); // Never scale up
+
+    // Use clip with scale factor for efficient downscaling
+    params.clip = {
+      x: 0,
+      y: 0,
+      width: currentWidth,
+      height: currentHeight,
+      scale: scale
+    };
+
+    const result = await this.send('Page.captureScreenshot', params);
+
+    return {
+      data: result.data,
+      format,
+      width: Math.round(currentWidth * scale),
+      height: Math.round(currentHeight * scale),
+      scale
+    };
   }
 
   async getPageContent() {

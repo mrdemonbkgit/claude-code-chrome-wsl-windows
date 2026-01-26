@@ -749,7 +749,7 @@ class MCPServer {
         await this.connectWebSocket();
       } catch (e) {
         log(`Reconnection failed: ${e.message}`);
-        this.sendError(message.id, -32000, 'Not connected to Chrome extension. Make sure the Windows host is running (click Claude in Chrome extension).');
+        this.sendError(message.id, -32000, 'Not connected to Windows host. Start it with: powershell.exe -File ~/life/integrations/scripts/start-all.ps1');
         return;
       }
     }
